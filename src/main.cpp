@@ -11,6 +11,7 @@
   by Bill Deng
 */
 #include <Arduino.h>
+#include <my-log.h>
 #include <WiFi.h> // for ESP32
 
 #include <ArduinoRS485.h> // ArduinoModbus depends on the ArduinoRS485 library
@@ -22,10 +23,10 @@
 #define TcpServerID   0xFF    // Modbus Device ID 0xFF for all
 
 const int ledPin = LED_BUILTIN;
-const int numCoils = 10;
-const int numDiscreteInputs = 10;
-const int numHoldingRegisters = 10;
-const int numInputRegisters = 10;
+const int numCoils = 32;
+const int numDiscreteInputs = 32;
+const int numHoldingRegisters = 32;
+const int numInputRegisters = 32;
 
 #define MAX_SRV_CLIENTS 3  // Define the maximum number of clients
 WiFiServer wifiServer(TcpServerPort);
@@ -39,13 +40,18 @@ void updateLED();
 void setup() {
   //Initialize serial and wait for port to open:
   Serial.begin(115200);
+  myLog_e("Log level is MYLOG_LOG_LEVEL_ERROR");
+	myLog_w("Log level is MYLOG_LOG_LEVEL_WARN");
+	myLog_i("Log level is MYLOG_LOG_LEVEL_INFO");
+	myLog_d("Log level is MYLOG_LOG_LEVEL_DEBUG");
+	myLog_v("Log level is MYLOG_LOG_LEVEL_VERBOSE");
 
     //WiFiManager
     //Local intialization. Once its business is done, there is no need to keep it around
     WiFiManager wifiManager;
     //reset saved settings
     //wifiManager.resetSettings();
-    wifiManager.setTimeout(60);
+    wifiManager.setTimeout(180);
     //set custom ip for portal
     //wifiManager.setAPStaticIPConfig(IPAddress(10,0,1,1), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
     //fetches ssid and pass from eeprom and tries to connect
@@ -61,15 +67,15 @@ void setup() {
     
   // start the server
   wifiServer.begin();
-  wifiServer.setNoDelay(1); //关闭小包合并包功能，不会延时发送数据
+  //wifiServer.setNoDelay(1); //关闭小包合并包功能，不会延时发送数据
 
   // start the Modbus TCP server id=0xFF
   if (!modbusTCPServer.begin(TcpServerID)) {
-    Serial.println("Failed to start Modbus TCP Server!");
+    myLog_d("Failed to start Modbus TCP Server!");
     //reset and try again, or maybe put it to deep sleep
     ESP.restart();
   }
-  Serial.println("Modbus TCP Server start");
+  myLog_d("Modbus TCP Server start");
 
   // configure the LED
   pinMode(ledPin, OUTPUT);
@@ -106,12 +112,10 @@ void loop() {
         if (serverClients[i]) {
           // check for vald client
           serverClients[i].stop(); 
-          Serial.print("Break Client: "); 
-          Serial.println(i);
+          myLog_d("Stop Client: ",i); 
         }        
         serverClients[i] = wifiServer.available();  // allocation new client
-        Serial.print("New Client: "); 
-        Serial.println(i);
+        myLog_d("New Client: ",i); 
         lastTcpRequestTime[i] = millis(); 
         break;
       }
@@ -120,7 +124,7 @@ void loop() {
     if (i >= MAX_SRV_CLIENTS) {
       WiFiClient client = wifiServer.available();
       client.stop();
-      Serial.println("No Free Client ");
+      myLog_d("No Free Client ");
     }
   }
   
@@ -134,7 +138,6 @@ void loop() {
           lastTcpRequestTime[i] = millis();
           // let the Modbus TCP accept the connection 
           modbusTCPServer.accept(serverClients[i]);
-
           // check more data
           while (serverClients[i].available()) {
             modbusTCPServer.poll();
@@ -143,16 +146,15 @@ void loop() {
             modbusTCPServer.coilWrite(0,!coil);
             holdreg = modbusTCPServer.holdingRegisterRead(0) ;
             modbusTCPServer.holdingRegisterWrite(0,++holdreg);
-            Serial.printf("%d",coil);
-            Serial.printf("   %d\n",holdreg);
+            myLog_d("%d",coil);
+            myLog_d("   %d\n",holdreg);
             updateLED();          
             }
         }
       }
       else {
         serverClients[i].stop();  // the client is break
-        Serial.print("Stop Client: "); 
-        Serial.println(i);
+        myLog_d("Stop Client: ",i); 
       }
     }
   }
